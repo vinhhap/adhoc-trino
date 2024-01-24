@@ -1,0 +1,10 @@
+apiVersion: v2
+name: apache-ranger
+description: A Helm chart for Apache Ranger Admin and Usersync
+type: application
+version: 0.1.0
+appVersion: "3.0.0-SNAPSHOT"
+icon: https://ranger.apache.org/ranger-logo.svg
+home: https://ranger.apache.org/
+maintainers:
+  - name: quannn2

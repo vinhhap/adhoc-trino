@@ -1,0 +1,225 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "trino.coordinator" . }}
+  labels:
+    app: {{ template "trino.name" . }}
+    chart: {{ template "trino.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+    component: coordinator
+    {{- if .Values.commonLabels }}
+    {{- tpl (toYaml .Values.commonLabels) . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "trino.name" . }}
+      release: {{ .Release.Name }}
+      component: coordinator
+  template:
+    metadata:
+      {{- if .Values.coordinator.annotations }}
+      annotations:
+      {{- tpl (toYaml .Values.coordinator.annotations) . | nindent 8 }}
+      {{- end }}
+      labels:
+        app: {{ template "trino.name" . }}
+        release: {{ .Release.Name }}
+        component: coordinator
+        {{- if .Values.coordinator.labels }}
+        {{- tpl (toYaml .Values.coordinator.labels) . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.commonLabels }}
+        {{- tpl (toYaml .Values.commonLabels) . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "trino.serviceAccountName" . }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        runAsUser: {{ .runAsUser }}
+        runAsGroup: {{ .runAsGroup }}
+      {{- end }}
+      {{- if .Values.shareProcessNamespace.coordinator }}
+      shareProcessNamespace: {{ .Values.shareProcessNamespace.coordinator }}
+      {{- end }}
+      volumes:
+        # Mount configmap to config volume
+        - name: config-volume
+          configMap:
+            name: {{ template "trino.coordinator" . }}
+        # Mount catalog secret to catalog volume
+        - name: catalog-volume
+          secret:
+            secretName: {{ .Values.server.catalogSecret }}
+        - name: schemas-volume
+          configMap:
+            name: schemas-volume-coordinator
+        {{- if .Values.accessControl }}{{- if eq .Values.accessControl.type "configmap" }}
+        - name: access-control-volume
+          configMap:
+            name: trino-access-control-volume-coordinator
+        {{- end }}{{- end }}
+        {{- if eq .Values.server.config.authenticationType "PASSWORD" }}
+        - name: password-volume
+          secret:
+            secretName: trino-password-authentication
+            items:
+              - key: password.db
+                path: password.db
+              {{- if .Values.auth.groups }}
+              - key: group.db
+                path: group.db
+              {{- end }}
+        {{- end }}
+        {{- range .Values.secretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+        {{- end }}
+        {{- range .Values.coordinator.secretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+        {{- end }}
+        
+        {{- if .Values.rangerGroupSync.enabled }}
+        - name: trino-ranger-group
+          emptyDir: {}
+        {{- end }}
+        
+        {{- if .Values.coordinator.resourceGroups.enabled }}
+        - name: trino-resource-groups
+          secret:
+            secretName: {{ .Values.coordinator.resourceGroups.secretName }}
+        {{- end }}
+        
+        {{- if .Values.persistDataDir.enabled }}
+        - name: {{ template "trino.coordinator" . }}-datadir
+          persistentVolumeClaim:
+            claimName: {{ template "trino.coordinator" . }}-datadir
+        {{- end }}
+        
+      {{- if .Values.initContainers.coordinator }}
+      initContainers:
+      {{- tpl (toYaml .Values.initContainers.coordinator) . | nindent 6 }}
+      {{- end }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-coordinator
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- toYaml .Values.env | nindent 12 }}
+          envFrom:
+            {{- toYaml .Values.envFrom | nindent 12 }}
+          volumeMounts:
+            # Config node.properties volume mount
+            - name: config-volume
+              mountPath: /root/trino-config/trino
+            # Catalog volume mount
+            - mountPath: {{ .Values.server.config.path }}/catalog
+              name: catalog-volume
+            - mountPath: {{ .Values.kafka.mountPath }}
+              name: schemas-volume
+            {{- if .Values.accessControl }}{{- if eq .Values.accessControl.type "configmap" }}
+            - mountPath: {{ .Values.server.config.path }}/access-control
+              name: access-control-volume
+            {{- end }}{{- end }}
+            {{- range .Values.secretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- range .Values.coordinator.secretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .path }}
+            {{- end }}
+            {{- if eq .Values.server.config.authenticationType "PASSWORD" }}
+            - mountPath: {{ .Values.server.config.path }}/auth
+              name: password-volume
+            {{- end }}
+            
+            {{- if .Values.rangerGroupSync.enabled }}
+            - name: trino-ranger-group
+              mountPath: {{ .Values.rangerGroupSync.mountPath }}
+            {{- end }}
+            
+            {{- if .Values.coordinator.resourceGroups.enabled }}
+            - name: trino-resource-groups
+              mountPath: {{ .Values.coordinator.resourceGroups.mountPath }}
+              subPath: resource-groups.properties
+            {{- end }}
+            
+            {{- if .Values.persistDataDir.enabled }}
+            - name: {{ template "trino.coordinator" . }}-datadir
+              mountPath: {{ .Values.server.node.dataDir }}
+            {{- end }}
+            
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+              
+          {{- if .Values.jmxExporter.coordinator.enabled }}
+            - name: jmx-exporter
+              containerPort: {{ .Values.jmxExporter.port | default 9933 }}
+              protocol: TCP
+          {{- end }}
+              
+          {{- range $key, $value := .Values.coordinator.additionalExposedPorts }}
+            - name: {{ $value.name }}
+              containerPort: {{ $value.port }}
+              protocol: {{ $value.protocol }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /v1/info
+              port: http
+            initialDelaySeconds: {{ .Values.coordinator.livenessProbe.initialDelaySeconds | default 20 }}
+            periodSeconds: {{ .Values.coordinator.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.coordinator.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.coordinator.livenessProbe.failureThreshold | default 6 }}
+            successThreshold: {{ .Values.coordinator.livenessProbe.successThreshold | default 1 }}
+          readinessProbe:
+            httpGet:
+              path: /v1/info
+              port: http
+            initialDelaySeconds: {{ .Values.coordinator.readinessProbe.initialDelaySeconds | default 20 }}
+            periodSeconds: {{ .Values.coordinator.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.coordinator.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.coordinator.readinessProbe.failureThreshold | default 6 }}
+            successThreshold: {{ .Values.coordinator.readinessProbe.successThreshold | default 1 }}
+          resources:
+            {{- toYaml .Values.coordinator.resources | nindent 12 }}
+      
+      {{- if .Values.rangerGroupSync.enabled }}
+        - name: {{ .Chart.Name }}-ranger-groupsync
+          image: "{{ .Values.rangerGroupSync.image.repository }}:{{ .Values.rangerGroupSync.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.rangerGroupSync.image.pullPolicy }}
+          env:
+            {{- toYaml .Values.rangerGroupSync.env | nindent 12 }}
+          envFrom:
+            {{- toYaml .Values.rangerGroupSync.envFrom | nindent 12 }}
+          volumeMounts:
+            - name: trino-ranger-group
+              mountPath: {{ .Values.rangerGroupSync.mountPath }}
+          resources:
+            {{- toYaml .Values.rangerGroupSync.resources | nindent 12 }}
+      {{- end }}
+      
+      {{- if .Values.sidecarContainers.coordinator }}
+        {{- toYaml .Values.sidecarContainers.coordinator | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coordinator.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coordinator.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coordinator.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,21 @@
+{{- if .Values.persistDataDir.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  {{- with .Values.persistDataDir.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  labels:
+    {{- include "trino.labels" . | nindent 4 }}
+  name: {{ template "trino.coordinator" . }}-datadir
+spec:
+  accessModes:
+  {{- range .Values.persistDataDir.accessModes }}
+  - {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistDataDir.size | quote }}
+  storageClassName: "{{ .Values.persistDataDir.storageClass }}"
+{{- end }}

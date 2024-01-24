@@ -1,0 +1,33 @@
+{{- if and .Values.server.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ template "trino.worker" . }}
+  labels:
+    component: trino-worker-autoscaler
+    release: {{ .Release.Name }}
+    chart: {{ template "trino.chart" . }}
+    heritage: {{ .Release.Service }}
+    deploymentName: {{ .Release.Name }}-worker
+    {{- if .Values.commonLabels }}
+    {{- tpl (toYaml .Values.commonLabels) . | nindent 4 }}
+    {{- end }}
+spec:
+  scaleTargetRef:
+    kind: StatefulSet
+    name: {{ template "trino.worker" . }}
+  pollingInterval:  {{ .Values.server.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.server.keda.cooldownPeriod }}
+  minReplicaCount: {{ .Values.server.keda.minReplicaCount }}
+  maxReplicaCount: {{ .Values.server.keda.maxReplicaCount }}
+  {{- if .Values.server.keda.advanced }}
+  advanced: {{- toYaml .Values.server.keda.advanced | nindent 4 }}
+  {{- end }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.server.keda.serverAddress }}
+        metricName: {{ .Values.server.keda.metricName | default "metric_01" }}
+        query: {{ .Values.server.keda.query }}
+        threshold: "{{ .Values.server.keda.threshold }}"
+{{- end }}
