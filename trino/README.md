@@ -35,6 +35,16 @@ The following table lists the configurable parameters of the Trino chart and the
 | `server.autoscaling.maxReplicas` |  | `5` |
 | `server.autoscaling.targetCPUUtilizationPercentage` |  | `50` |
 | `server.catalogSecret` |  | `""` |
+| `server.keda.enabled` |  | `false` |
+| `server.keda.pollingInterval` |  | `30` |
+| `server.keda.cooldownPeriod` |  | `30` |
+| `server.keda.minReplicaCount` |  | `2` |
+| `server.keda.maxReplicaCount` |  | `5` |
+| `server.keda.serverAddress` |  | `""` |
+| `server.keda.metricName` |  | `"metric_01"` |
+| `server.keda.query` |  | `""` |
+| `server.keda.threshold` |  | `"1"` |
+| `server.keda.advanced` |  | `{}` |
 | `accessControl` |  | `{}` |
 | `additionalNodeProperties` |  | `{}` |
 | `additionalConfigProperties` |  | `{}` |
@@ -91,6 +101,11 @@ The following table lists the configurable parameters of the Trino chart and the
 | `worker.annotations` |  | `{}` |
 | `worker.labels` |  | `{}` |
 | `worker.secretMounts` |  | `[]` |
+| `worker.resourceGroups.enabled` |  | `false` |
+| `worker.resourceGroups.mountPath` |  | `""` |
+| `worker.resourceGroups.secretName` |  | `""` |
+| `worker.gracefulShutdown.enabled` |  | `false` |
+| `worker.gracefulShutdown.terminationGracePeriodSeconds` |  | `600` |
 | `kafka.mountPath` |  | `"/etc/trino/schemas"` |
 | `kafka.tableDescriptions` |  | `{}` |
 | `commonLabels` | Labels that get applied to every resource's metadata | `{}` |
@@ -113,6 +128,12 @@ The following table lists the configurable parameters of the Trino chart and the
 | `spillToDisk.size` |  | `"100Gi"` |
 | `spillToDisk.storageClassName` |  | `""` |
 | `spillToDisk.path` |  | `""` |
+| `persistDataDir.enabled` |  | `false` |
+| `persistDataDir.labels.enabled` |  | `false` |
+| `persistDataDir.annotations` |  | `{}` |
+| `persistDataDir.accessModes` |  | `["ReadWriteOnce"]` |
+| `persistDataDir.size` |  | `"1Gi"` |
+| `persistDataDir.storageClassName` |  | `""` |
 | `rangerGroupSync.enabled` |  | `false` |
 | `rangerGroupSync.image.repository` |  | `"897528479702.dkr.ecr.ap-southeast-1.amazonaws.com/eda-ranger-groupsync"` |
 | `rangerGroupSync.image.pullPolicy` |  | `"IfNotPresent"` |
@@ -122,6 +143,16 @@ The following table lists the configurable parameters of the Trino chart and the
 | `rangerGroupSync.envFrom` |  | `[]` |
 | `rangerGroupSync.refreshPeriod` |  | `"5s"` |
 | `rangerGroupSync.resources` |  | `{}` |
+| `jmxExporter.coordinator.enabled` |  | `false` |
+| `jmxExporter.worker.enabled` |  | `false` |
+| `jmxExporter.port` |  | `9933` |
+| `jmxExporter.config` |  | `"rules:\n  - pattern: \"trino.execution<name=QueryManager>\"\n  - pattern: \"trino.execution<name=SqlTaskManager>\"\n  - pattern: \"trino.memory.*\"\n  - pattern: \"java.lang.*\"\n"` |
+| `jmxExporter.serviceMonitor.enabled` |  | `false` |
+| `jmxExporter.serviceMonitor.port` |  | `"jmx-exporter"` |
+| `jmxExporter.serviceMonitor.additionalLabels` |  | `{}` |
+| `jmxExporter.serviceMonitor.interval` |  | `"1m"` |
+| `jmxExporter.serviceMonitor.scrapeTimeout` |  | `"10s"` |
+| `jmxExporter.serviceMonitor.path` |  | `"/metrics"` |
 
 
 
